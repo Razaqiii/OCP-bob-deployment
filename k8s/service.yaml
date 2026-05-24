@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: bob-app
+  namespace: production
+  labels:
+    app: bob-app
+    component: backend
+  annotations:
+    description: "Service for Bob application deployed via Jenkins webhook"
+spec:
+  type: ClusterIP
+  selector:
+    app: bob-app
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  sessionAffinity: None
+
+# Made with Bob

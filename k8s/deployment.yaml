@@ -1,0 +1,104 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bob-app
+  namespace: production
+  labels:
+    app: bob-app
+    version: v1
+    managed-by: jenkins
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: bob-app
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: bob-app
+        version: v1
+    spec:
+      containers:
+      - name: bob-app
+        image: python:3.9-slim
+        command: ["/bin/bash", "-c"]
+        args:
+          - |
+            # Install dependencies
+            pip install --no-cache-dir flask gunicorn
+            
+            # Create app directory
+            mkdir -p /app
+            cd /app
+            
+            # Create the Flask application
+            cat > app.py << 'EOF'
+            from flask import Flask, jsonify
+            import os
+            import socket
+            from datetime import datetime
+            
+            app = Flask(__name__)
+            
+            @app.route('/')
+            def home():
+                return jsonify({
+                    'message': '🤖 Bob Deployment Pipeline - Working!',
+                    'status': 'success',
+                    'hostname': socket.gethostname(),
+                    'timestamp': datetime.utcnow().isoformat(),
+                    'deployed_via': 'Jenkins Webhook'
+                })
+            
+            @app.route('/health')
+            def health():
+                return jsonify({'status': 'healthy'}), 200
+            
+            @app.route('/ready')
+            def ready():
+                return jsonify({'status': 'ready'}), 200
+            
+            if __name__ == '__main__':
+                app.run(host='0.0.0.0', port=8080)
+            EOF
+            
+            # Run the application with gunicorn
+            exec gunicorn --bind 0.0.0.0:8080 --workers 2 --timeout 120 app:app
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: APP_VERSION
+          value: "1.0.0"
+        - name: ENVIRONMENT
+          value: "production"
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+          requests:
+            cpu: "250m"
+            memory: "256Mi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+
+# Made with Bob
