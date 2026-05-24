@@ -6,7 +6,6 @@ metadata:
   labels:
     app: bob-app
     version: v1
-    managed-by: jenkins
 spec:
   replicas: 2
   selector:
@@ -29,12 +28,16 @@ spec:
         command: ["/bin/bash", "-c"]
         args:
           - |
-            # Install dependencies
-            pip install --no-cache-dir flask gunicorn
+            # Use /tmp which is writable in OpenShift
+            export HOME=/tmp
+            export PATH="/tmp/.local/bin:$PATH"
             
-            # Create app directory
-            mkdir -p /app
-            cd /app
+            # Install packages to /tmp/.local (writable)
+            pip install --user flask gunicorn
+            
+            # Create app in /tmp/app (writable)
+            mkdir -p /tmp/app
+            cd /tmp/app
             
             # Create the Flask application
             cat > app.py << 'EOF'
@@ -67,7 +70,7 @@ spec:
                 app.run(host='0.0.0.0', port=8080)
             EOF
             
-            # Run the application with gunicorn
+            # Run with gunicorn
             exec gunicorn --bind 0.0.0.0:8080 --workers 2 --timeout 120 app:app
         ports:
         - containerPort: 8080
@@ -88,7 +91,7 @@ spec:
           httpGet:
             path: /health
             port: 8080
-          initialDelaySeconds: 30
+          initialDelaySeconds: 60
           periodSeconds: 10
           timeoutSeconds: 5
           failureThreshold: 3
@@ -96,7 +99,7 @@ spec:
           httpGet:
             path: /ready
             port: 8080
-          initialDelaySeconds: 10
+          initialDelaySeconds: 30
           periodSeconds: 5
           timeoutSeconds: 3
           failureThreshold: 3
